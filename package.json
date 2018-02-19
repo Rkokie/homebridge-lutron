@@ -1,0 +1,21 @@
+{
+    "name": "homebridge-lutron",
+    "version": "0.0.1",
+    "description": "Lutron plugin for homebridge: https://github.com/nfarina/homebridge",
+    "license": "ISC",
+    "keywords": [
+      "homebridge-plugin",
+      "lutron"
+    ],
+    "repository": {
+      "type": "git",
+      "url": "git://github.com/Rkokie/homebridge-lutron.git"
+    },
+    "bugs": {
+      "url": "https://github.com/Rkokie/homebridge-lutron/issues"
+    },
+    "engines": {
+      "node": ">=0.12.0",
+      "homebridge": ">=0.2.0"
+    }
+  }
