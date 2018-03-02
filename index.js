@@ -46,20 +46,22 @@ class LutronConnection extends EventEmitter {
     connect() {
         this.socket = net.connect(23, this.host);
         this.socket.on('data', (data) => {
-            console.log('RECEIVED>>', data, '<<');
+            let message = data.toString();
+            console.log('RECEIVED>>', message, '<<');
 
-            if (data === 'login: ') this.send(this.username);
-            else if (data === 'password: ') this.send(this.password);
-            else this.incomingData(data);
+            if (message === 'login: ') this.send(this.username);
+            else if (message === 'password: ') this.send(this.password);
+            else this.incomingData(message);
         }).on('connect', () => {
 
         }).on('end', () => {
             this.connect();
+            console.log('LUTRON CONNECTION BROKE D:');
         });
     }
 
     incomingData(data) {
-        var str = String(data);
+        let str = String(data);
 
         if (/GNET>\s/.test(str)) {
             this.connectionBusy = false;
@@ -72,23 +74,23 @@ class LutronConnection extends EventEmitter {
         }
 
         if (0 === str.indexOf('~OUTPUT')) {
-            var params = str.replace('~OUTPUT,', '');
+            let params = str.replace('~OUTPUT,', '').split(',');
 
-            this.outputReceived.apply(this, params.map(Number));
+            this.statusRecieved.apply(this, params.map(Number));
         }
     }
 
-    statusRecieved(integrationId, parameters) {
+    statusRecieved(integrationId, ...parameters) {
         this.emit('output', integrationId, parameters);
     }
 
     sendCommand(command) {
-        if (this.connectionBusy) {
-            this.commandQueue.push(command);
-        } else {
-            this.connectionBusy = true;
-            this.send(command);
-        }
+        //if (this.connectionBusy) {
+        //    this.commandQueue.push(command);
+        //} else {
+        //    this.connectionBusy = true;
+        this.send(command);
+        //}
     }
 
     send(command) {
@@ -127,6 +129,7 @@ class LutronAccessory {
 
     registerLutronHandlers() {
         this.lutronConnection.on('output', (integrationId, parameters) => {
+            console.log('RECEIVED STUFF!', integrationId, parameters);
             if (integrationId === this.id) {
                 // Do things.
             }
@@ -184,27 +187,49 @@ class LutronAccessory {
     }
 
     setTargetPosition(pos, callback) {
-        this.log('Set TargetPosition: %s', pos);
+        let command = '#SHADEGRP,' + this.id + ',1,' + pos;
+        this.log('Set TargetPosition: %s [Lutron command: %s]', pos, command);
+        this.lutronConnection.sendCommand(command);
         callback(null);
     }
 
-    getCurrentTiltAngle() {
+    getCurrentTiltAngle(callback) {
         // TODO IMPLEMENT METHOD
         callback(null, this.currentTiltAngle);
     }
 
-    getTargetTiltAngle() {
+    getTargetTiltAngle(callback) {
         // TODO IMPLEMENT METHOD
         callback(null, this.currentTargetTiltAngle);
     }
 
     setTargetTiltAngle(angle, callback) {
-        // TODO IMPLEMENT METHOD
-        this.log('Set TargetTiltAngle: %s', angle);
+        let lutronAngle = this.homekitAngleToLutronAngle(angle);
+        let command = '#SHADEGRP,' + this.id + ',14,' + Math.round(lutronAngle);
+        this.log('Set TargetTiltAngle: %s [Lutron command: %s]', angle, command);
+        this.lutronConnection.sendCommand(command);
         callback(null);
+    }
+
+    /**
+     * 0-100 to -90-90
+     */
+    lutronAngleToHomekitAngle(percentage) {
+        let conversionValue = 90 / 50;
+        return (percentage - 50) * conversionValue;
+    }
+
+    /**
+     * -90-90 to 0-100
+     */
+    homekitAngleToLutronAngle(angle) {
+        let conversionValue = 50 / 90;
+        let value = Math.abs(angle) * conversionValue;
+        return angle > 0 ? value + 50 : value;
     }
 
     getServices() {
         return [this.service];
     }
 }
+
