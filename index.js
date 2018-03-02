@@ -1,20 +1,21 @@
 'use strict';
 
-import { EventEmitter } from 'events';
-import { net } from 'net';
+const EventEmitter = require('events').EventEmitter;
+const net = require('net');
 
-const Service;
-const Characteristic;
-const LutronConnectionInstances = {};
+let Characteristic, Service;
+let LutronConnectionInstances = {};
 
-export default function (homebridge) {
+module.exports = function (homebridge) {
     Service = homebridge.hap.Service;
     Characteristic = homebridge.hap.Characteristic;
-    homebridge.registerAccessory('homebridge-lutron', 'LutronAccessory', LutronAccessory);
+    homebridge.registerAccessory('homebridge-lutron', 'LutronAccessory', LutronAccessory, true);
 };
 
 class LutronConnection extends EventEmitter {
     constructor(host, username, password) {
+        super();
+
         this.host = host;
         this.username = username;
         this.password = password;
@@ -26,13 +27,13 @@ class LutronConnection extends EventEmitter {
     }
 
     /**
-     * @param {string} host 
-     * @param {string} username 
-     * @param {string} password 
+     * @param {string} host
+     * @param {string} username
+     * @param {string} password
      * @returns {LutronConnection}
      */
-    static getInstance (host, username, password) {
-        var instanceKey = host + '-' + username + '-' + btoa(password);
+    static getInstance(host, username, password) {
+        let instanceKey = host + '-' + username + '-' + new Buffer(password).toString('base64');
 
         if (!LutronConnectionInstances[instanceKey]) {
             let instance = new LutronConnection(host, username, password);
@@ -45,13 +46,13 @@ class LutronConnection extends EventEmitter {
     connect() {
         this.socket = net.connect(23, this.host);
         this.socket.on('data', (data) => {
-            console.log("RECEIVED>>", data, "<<");
+            console.log('RECEIVED>>', data, '<<');
 
             if (data === 'login: ') this.send(this.username);
             else if (data === 'password: ') this.send(this.password);
             else this.incomingData(data);
         }).on('connect', () => {
-        
+
         }).on('end', () => {
             this.connect();
         });
@@ -157,7 +158,7 @@ class LutronAccessory {
         // https://github.com/KhaosT/HAP-NodeJS/blob/master/lib/gen/HomeKitTypes.js#L560
         this.service
             .getCharacteristic(Characteristic.CurrentHorizontalTiltAngle)
-            .on('get', this.getTiltAngle.bind(this));
+            .on('get', this.getCurrentTiltAngle.bind(this));
 
         // the target tilt state (-90deg-90deg)
         // https://github.com/KhaosT/HAP-NodeJS/blob/master/lib/gen/HomeKitTypes.js#L560
@@ -168,22 +169,22 @@ class LutronAccessory {
     }
 
     getCurrentPosition(callback) {
-        this.log("Requested CurrentPosition: %s", this.lastPosition);
+        this.log('Requested CurrentPosition: %s', this.lastPosition);
         callback(null, this.lastPosition);
     }
 
     getPositionState(callback) {
-        this.log("Requested PositionState: %s", this.currentPositionState);
+        this.log('Requested PositionState: %s', this.currentPositionState);
         callback(null, this.currentPositionState);
     }
 
     getTargetPosition(callback) {
-        this.log("Requested TargetPosition: %s", this.currentTargetPosition);
+        this.log('Requested TargetPosition: %s', this.currentTargetPosition);
         callback(null, this.currentTargetPosition);
     }
 
     setTargetPosition(pos, callback) {
-        this.log("Set TargetPosition: %s", pos);
+        this.log('Set TargetPosition: %s', pos);
         callback(null);
     }
 
@@ -197,8 +198,9 @@ class LutronAccessory {
         callback(null, this.currentTargetTiltAngle);
     }
 
-    setTargetTiltAngle() {
+    setTargetTiltAngle(angle, callback) {
         // TODO IMPLEMENT METHOD
+        this.log('Set TargetTiltAngle: %s', angle);
         callback(null);
     }
 
