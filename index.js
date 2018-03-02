@@ -7,7 +7,7 @@ const Service;
 const Characteristic;
 const LutronConnectionInstances = {};
 
-module.exports = function (homebridge) {
+export default function (homebridge) {
     Service = homebridge.hap.Service;
     Characteristic = homebridge.hap.Characteristic;
     homebridge.registerAccessory('homebridge-lutron', 'LutronAccessory', LutronAccessory);
