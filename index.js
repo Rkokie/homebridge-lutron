@@ -170,8 +170,8 @@ class LutronShades {
     }
 
     fetchCurrentValues() {
-        this.lutronConnection.sendCommand('#SHADEGRP,' + this.integrationId + ',1');
-        this.lutronConnection.sendCommand('#SHADEGRP,' + this.integrationId + ',14');
+        this.lutronConnection.sendCommand('?SHADEGRP,' + this.integrationId + ',1');
+        this.lutronConnection.sendCommand('?SHADEGRP,' + this.integrationId + ',14');
     }
 
     registerLutronHandlers() {
