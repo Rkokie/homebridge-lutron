@@ -2,15 +2,18 @@
 
 const EventEmitter = require('events').EventEmitter;
 const net = require('net');
+//const LutronConnection = require('../node-lutron-connection').LutronConnection;
 
 let Characteristic, Service;
-let LutronConnectionInstances = {};
 
 module.exports = function (homebridge) {
     Service = homebridge.hap.Service;
     Characteristic = homebridge.hap.Characteristic;
-    homebridge.registerAccessory('homebridge-lutron', 'LutronAccessory', LutronAccessory, true);
+    homebridge.registerAccessory('homebridge-lutron-shades', 'LutronShades', LutronShades, true);
 };
+
+
+let LutronConnectionInstances = {};
 
 class LutronConnection extends EventEmitter {
     constructor(host, username, password) {
@@ -47,7 +50,7 @@ class LutronConnection extends EventEmitter {
         this.socket = net.connect(23, this.host);
         this.socket.on('data', (data) => {
             let message = data.toString();
-            console.log('RECEIVED>>', message, '<<');
+            //console.log('RECEIVED>>', message, '<<');
 
             if (message === 'login: ') this.send(this.username);
             else if (message === 'password: ') this.send(this.password);
@@ -76,12 +79,19 @@ class LutronConnection extends EventEmitter {
         if (0 === str.indexOf('~OUTPUT')) {
             let params = str.replace('~OUTPUT,', '').split(',');
 
-            this.statusRecieved.apply(this, params.map(Number));
+            this.statusReceived('output', ...params.map(Number));
+        }
+
+        if (0 === str.indexOf('~SHADEGRP')) {
+            let params = str.replace('~SHADEGRP,', '').split(',');
+
+            this.statusReceived('shadeGroup', ...params.map(Number));
         }
     }
 
-    statusRecieved(integrationId, ...parameters) {
-        this.emit('output', integrationId, parameters);
+    statusReceived(type, integrationId, actionId, ...parameters) {
+        // type, integrationId, action, params
+        this.emit(type, integrationId, actionId, parameters);
     }
 
     sendCommand(command) {
@@ -102,24 +112,24 @@ class LutronConnection extends EventEmitter {
     }
 }
 
-class LutronAccessory {
+class LutronShades {
 
     constructor(log, config) {
         this.log = log;
 
         this.name = config['name'];
-        this.id = config['id'];
+        this.integrationId = config['id'];
         this.lutronConnection = LutronConnection.getInstance(
             config['host'],
             config['username'],
             config['password']
         );
 
-        this.lastPosition = 0; // last known position of the blinds, down by default
-        this.currentTiltAngle = 0; // current tilt angle of the blinds, flat by default
-        this.currentPositionState = 2; // stopped by default
-        this.currentTargetPosition = 0; // down by default
-        this.currentTargetTiltAngle = 0;
+        this._lastPosition = 0; // last known position of the blinds, down by default
+        this._currentTiltAngle = 0; // current tilt angle of the blinds, flat by default
+        this._currentPositionState = 2; // stopped by default
+        this._currentTargetPosition = 0; // down by default
+        this._currentTargetTiltAngle = 0;
 
         // register the service and provide the functions
         this.service = new Service.WindowCovering(this.name);
@@ -127,11 +137,72 @@ class LutronAccessory {
         this.registerServices();
     }
 
+    get lastPosition() { return this._lastPosition; }
+    get currentTiltAngle() { return this._currentTiltAngle; }
+    get currentPositionState() { return this._currentPositionState; }
+    get currentTargetPosition() { return this._currentTargetPosition; }
+    get currentTargetTiltAngle() { return this._currentTargetTiltAngle; }
+
+    set lastPosition(value) {
+        this._lastPosition = value;
+        this.service.getCharacteristic(Characteristic.CurrentPosition).setValue(this._lastPosition);
+    }
+
+    set currentTiltAngle(value) {
+        this._currentTiltAngle = value;
+        this.service.getCharacteristic(Characteristic.CurrentHorizontalTiltAngle).setValue(this._currentTiltAngle);
+    }
+
+    set currentPositionState(value) {
+        this._currentPositionState = value;
+        this.service.getCharacteristic(Characteristic.PositionState).setValue(this._currentPositionState);
+    }
+
+    set currentTargetPosition(value) {
+        this._currentTargetPosition = value;
+        this.service.getCharacteristic(Characteristic.TargetPosition).setValue(this._currentTargetPosition);
+    }
+
+    set currentTargetTiltAngle(value) {
+        this._currentTargetTiltAngle = value;
+        this.service.getCharacteristic(Characteristic.TargetHorizontalTiltAngle).setValue(this._currentTargetTiltAngle);
+    }
+
     registerLutronHandlers() {
-        this.lutronConnection.on('output', (integrationId, parameters) => {
-            console.log('RECEIVED STUFF!', integrationId, parameters);
-            if (integrationId === this.id) {
-                // Do things.
+        this.lutronConnection.on('shadeGroup', (integrationId, actionId, parameters) => {
+            if (integrationId !== this.integrationId) {
+                // this event is not ment for this integration.
+                return;
+            }
+
+            //console.log('SHADEGRP,' + integrationId + ',' + actionId + ',' + parameters.join(','));
+
+            switch (+actionId) {
+                case 1: // level
+                    this.currentTargetPosition = Math.round(+parameters[0]);
+                    break;
+                case 2: // raising
+                    this.currentPositionState = 1;
+                    //this.currentTargetPosition = Math.round(+parameters[0]);
+
+                    break;
+                case 3: // lowering
+                    this.currentPositionState = 0;
+                    //this.currentTargetPosition = Math.round(+parameters[0]);
+                    break;
+                case 4: // stop raising/lowering
+                    this.currentPositionState = 2;
+                    break;
+                case 14: // Tilt level
+                    this.currentTiltAngle = this.lutronAngleToHomekitAngle(+parameters[0]);
+                    break;
+                case 32: // raising/lowering/stopped
+                    this.currentPositionState = +parameters[0];
+
+                    if (this.currentPositionState === 2) {
+                        this.lastPosition = Math.round(+parameters[1]);
+                    }
+                    break;
             }
         });
     }
@@ -186,13 +257,6 @@ class LutronAccessory {
         callback(null, this.currentTargetPosition);
     }
 
-    setTargetPosition(pos, callback) {
-        let command = '#SHADEGRP,' + this.id + ',1,' + pos;
-        this.log('Set TargetPosition: %s [Lutron command: %s]', pos, command);
-        this.lutronConnection.sendCommand(command);
-        callback(null);
-    }
-
     getCurrentTiltAngle(callback) {
         // TODO IMPLEMENT METHOD
         callback(null, this.currentTiltAngle);
@@ -203,10 +267,19 @@ class LutronAccessory {
         callback(null, this.currentTargetTiltAngle);
     }
 
+    setTargetPosition(pos, callback) {
+        let command = '#SHADEGRP,' + this.integrationId + ',1,' + pos;
+        this.log('Set TargetPosition: %s [Lutron command: %s]', pos, command);
+        this._currentTargetPosition = pos;
+        this.lutronConnection.sendCommand(command);
+        callback(null);
+    }
+
     setTargetTiltAngle(angle, callback) {
         let lutronAngle = this.homekitAngleToLutronAngle(angle);
-        let command = '#SHADEGRP,' + this.id + ',14,' + Math.round(lutronAngle);
+        let command = '#SHADEGRP,' + this.integrationId + ',14,' + Math.round(lutronAngle);
         this.log('Set TargetTiltAngle: %s [Lutron command: %s]', angle, command);
+        this._currentTargetTiltAngle = angle;
         this.lutronConnection.sendCommand(command);
         callback(null);
     }
@@ -216,7 +289,7 @@ class LutronAccessory {
      */
     lutronAngleToHomekitAngle(percentage) {
         let conversionValue = 90 / 50;
-        return (percentage - 50) * conversionValue;
+        return Math.round((percentage - 50) * conversionValue);
     }
 
     /**
@@ -224,12 +297,15 @@ class LutronAccessory {
      */
     homekitAngleToLutronAngle(angle) {
         let conversionValue = 50 / 90;
-        let value = Math.abs(angle) * conversionValue;
-        return angle > 0 ? value + 50 : value;
+
+        if (+angle >= 0) {
+            return (angle * conversionValue) + 50;
+        } else {
+            return (90 - Math.abs(angle)) * conversionValue;
+        }
     }
 
     getServices() {
         return [this.service];
     }
 }
-
