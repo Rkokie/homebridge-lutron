@@ -135,6 +135,7 @@ class LutronShades {
         this.service = new Service.WindowCovering(this.name);
         this.registerLutronHandlers();
         this.registerServices();
+        this.fetchCurrentValues();
     }
 
     get lastPosition() { return this._lastPosition; }
@@ -166,6 +167,11 @@ class LutronShades {
     set currentTargetTiltAngle(value) {
         this._currentTargetTiltAngle = value;
         this.service.getCharacteristic(Characteristic.TargetHorizontalTiltAngle).setValue(this._currentTargetTiltAngle);
+    }
+
+    fetchCurrentValues() {
+        this.lutronConnection.sendCommand('#SHADEGRP,' + this.integrationId + ',1');
+        this.lutronConnection.sendCommand('#SHADEGRP,' + this.integrationId + ',14');
     }
 
     registerLutronHandlers() {
@@ -258,12 +264,10 @@ class LutronShades {
     }
 
     getCurrentTiltAngle(callback) {
-        // TODO IMPLEMENT METHOD
         callback(null, this.currentTiltAngle);
     }
 
     getTargetTiltAngle(callback) {
-        // TODO IMPLEMENT METHOD
         callback(null, this.currentTargetTiltAngle);
     }
 
