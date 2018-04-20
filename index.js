@@ -134,13 +134,13 @@ class LutronShade {
     }
 }
 
-class LutronVenetianBlind implements LutronShade {
+class LutronVenetianBlind extends LutronShade {
     get canTilt() {
         return true;
     }
 }
 
-class LutronRollerShade implements LutronShade {
+class LutronRollerShade extends LutronShade {
     get canTilt() {
         return false;
     }
