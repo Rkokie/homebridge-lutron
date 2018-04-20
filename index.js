@@ -112,7 +112,7 @@ class LutronConnection extends EventEmitter {
     }
 }
 
-export const SHADE_TYPE = {
+const SHADE_TYPE = {
     VENETIAN_BLIND: 'venetian blinds',
     ROLLER_SHADE: 'roller shade'
 };
