@@ -112,6 +112,40 @@ class LutronConnection extends EventEmitter {
     }
 }
 
+export const SHADE_TYPE = {
+    VENETIAN_BLIND: 'venetian blinds',
+    ROLLER_SHADE: 'roller shade'
+};
+
+class LutronShade {
+    get canTilt() {
+        return false;
+    }
+
+    static createFromType(type) {
+        switch (type) {
+            case SHADE_TYPE.VENETIAN_BLIND:
+                return new LutronVenetianBlind();
+            case SHADE_TYPE.ROLLER_SHADE:
+                return new LutronRollerShade();
+            default:
+                return new LutronShade();
+        }
+    }
+}
+
+class LutronVenetianBlind implements LutronShade {
+    get canTilt() {
+        return true;
+    }
+}
+
+class LutronRollerShade implements LutronShade {
+    get canTilt() {
+        return false;
+    }
+}
+
 class LutronShades {
 
     constructor(log, config) {
@@ -119,10 +153,11 @@ class LutronShades {
 
         this.name = config['name'];
         this.integrationId = config['id'];
+        this.shade = LutronShade.createFromType(config['shadeType'] || SHADE_TYPE.VENETIAN_BLIND);
         this.lutronConnection = LutronConnection.getInstance(
-            config['host'],
-            config['username'],
-            config['password']
+            config['host'] || '192.168.1.192',
+            config['username'] || 'lutron',
+            config['password'] || 'lutron'
         );
 
         this._lastPosition = 0; // last known position of the blinds, down by default
@@ -171,7 +206,10 @@ class LutronShades {
 
     fetchCurrentValues() {
         this.lutronConnection.sendCommand('?SHADEGRP,' + this.integrationId + ',1');
-        this.lutronConnection.sendCommand('?SHADEGRP,' + this.integrationId + ',14');
+
+        if (this.shade.canTilt) {
+            this.lutronConnection.sendCommand('?SHADEGRP,' + this.integrationId + ',14');
+        }
     }
 
     registerLutronHandlers() {
@@ -185,16 +223,17 @@ class LutronShades {
 
             switch (+actionId) {
                 case 1: // level
-                    this.currentTargetPosition = Math.round(+parameters[0]);
+                    if (this.currentPositionState === 2) {
+                        this.currentTargetPosition = Math.round(+parameters[0]);
+                    } else {
+                        this.lastPosition = Math.round(+parameters[0]);
+                    }
                     break;
                 case 2: // raising
                     this.currentPositionState = 1;
-                    //this.currentTargetPosition = Math.round(+parameters[0]);
-
                     break;
                 case 3: // lowering
                     this.currentPositionState = 0;
-                    //this.currentTargetPosition = Math.round(+parameters[0]);
                     break;
                 case 4: // stop raising/lowering
                     this.currentPositionState = 2;
@@ -234,18 +273,20 @@ class LutronShades {
             .on('get', this.getTargetPosition.bind(this))
             .on('set', this.setTargetPosition.bind(this));
 
-        // the current tilt state (-90deg-90deg)
-        // https://github.com/KhaosT/HAP-NodeJS/blob/master/lib/gen/HomeKitTypes.js#L560
-        this.service
-            .getCharacteristic(Characteristic.CurrentHorizontalTiltAngle)
-            .on('get', this.getCurrentTiltAngle.bind(this));
+        if (this.shade.canTilt) {
+            // the current tilt state (-90deg-90deg)
+            // https://github.com/KhaosT/HAP-NodeJS/blob/master/lib/gen/HomeKitTypes.js#L560
+            this.service
+                .getCharacteristic(Characteristic.CurrentHorizontalTiltAngle)
+                .on('get', this.getCurrentTiltAngle.bind(this));
 
-        // the target tilt state (-90deg-90deg)
-        // https://github.com/KhaosT/HAP-NodeJS/blob/master/lib/gen/HomeKitTypes.js#L560
-        this.service
-            .getCharacteristic(Characteristic.TargetHorizontalTiltAngle)
-            .on('get', this.getTargetTiltAngle.bind(this))
-            .on('set', this.setTargetTiltAngle.bind(this));
+            // the target tilt state (-90deg-90deg)
+            // https://github.com/KhaosT/HAP-NodeJS/blob/master/lib/gen/HomeKitTypes.js#L560
+            this.service
+                .getCharacteristic(Characteristic.TargetHorizontalTiltAngle)
+                .on('get', this.getTargetTiltAngle.bind(this))
+                .on('set', this.setTargetTiltAngle.bind(this));
+        }
     }
 
     getCurrentPosition(callback) {

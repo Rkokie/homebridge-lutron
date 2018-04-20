@@ -1,18 +1,22 @@
 {
-    "name": "homebridge-lutron",
-    "version": "0.0.1",
-    "description": "Lutron plugin for homebridge: https://github.com/nfarina/homebridge",
+    "name": "homebridge-lutron-shades",
+    "version": "0.1.0",
+    "description": "Lutron shades plugin for homebridge: https://github.com/nfarina/homebridge",
     "license": "ISC",
     "keywords": [
       "homebridge-plugin",
-      "lutron"
+      "lutron",
+      "shades",
+      "blinds",
+      "venetian"
     ],
+    "author": "Roger Kok <kok.roger@gmail.com> (rogerkok.com)",
     "repository": {
       "type": "git",
-      "url": "git://github.com/Rkokie/homebridge-lutron.git"
+      "url": "git://github.com/Rkokie/homebridge-lutron-shades.git"
     },
     "bugs": {
-      "url": "https://github.com/Rkokie/homebridge-lutron/issues"
+      "url": "https://github.com/Rkokie/homebridge-lutron-shades/issues"
     },
     "engines": {
       "node": ">=0.12.0",
