@@ -32,7 +32,7 @@ password     | string   | no          | lutron           | password for your Lut
             "name": "Venetian blinds",
             "type": "venetian blinds",
             "id": 1,
-            "host": 192.168.1.100,
+            "host": "192.168.1.100",
             "username": "lutron",
             "password": "lutron"
         }
